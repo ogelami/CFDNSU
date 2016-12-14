@@ -1,0 +1,8 @@
+[Unit]
+Description=CloudFlare DNS updater
+
+[Service]
+ExecStart=/usr/bin/CFDNSU.py
+
+[Install]
+WantedBy=multi-user.target
