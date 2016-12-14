@@ -9,7 +9,7 @@ import ConfigParser, requests, json, sys, time, argparse, time, datetime, os.pat
 
 parser = argparse.ArgumentParser(description='CloudFlare DNS Updater')
 parser.add_argument('-c', dest='config', default='/etc/CFDNSU.conf', metavar='file', help='Use an alternative configuration file.')
-parser.add_argument('-l', dest='log', default='/var/log/CFDNSU.log', metavar='file', help='Log file')
+parser.add_argument('-l', dest='log', default=False, metavar='file', help='Log file')
 parser.add_argument('--dump', dest='dump_mode', action='store_true', required=False, help='Dumping mode')
 parser.add_argument('-u', dest='email', default=False, required=False, help='Email')
 parser.add_argument('-p', dest='api_key', default=False, required=False, help='API key')
@@ -32,11 +32,12 @@ if os.path.isfile(args.config) and config.read(args.config) and config.has_secti
 	i = config.get('configuration', 'identifier')
 	s = config.get('configuration', 'subdomain')
 	d = config.get('configuration', 'domain')
+	l = config.get('configuration', 'log_file')
 	r = config.getint('configuration', 'refresh_rate')
 
 h = { 'X-Auth-Email' : u, 'X-Auth-Key' : k, 'Content-Type' : 'application/json' }
 
-logWriter = open(args.log, 'a')
+logWriter = open(l if not args.log else args.log, 'a')
 
 def logWrite(text):
 	text = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S - ') + text
@@ -115,7 +116,7 @@ if args.dump_mode:
 	c.dump();
 	sys.exit(0)
 
-cloudflareIp = c.getCloudFlareIp(s+'.'+d)
+cloudflareIp = c.getCloudFlareIp("%s.%s" % (s, d))
 publicIp = c.resolveIp()
 
 logWrite('DNS ip %s.' % cloudflareIp)
