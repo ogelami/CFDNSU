@@ -1,4 +1,0 @@
-- [ ] Make dump list more than 20 domains(currently capped)
-- [ ] Make it possible to select a specific site for dumping --dump example.com
-- [ ] Prioritize arguments over config passed to application on start
-- [ ] Fix crash bug when there are no log file, and when application is set to dump only.
