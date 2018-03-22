@@ -7,18 +7,18 @@ parser = argparse.ArgumentParser(description = 'CloudFlare DNS Updater')
 parser.add_argument('--authenticate', dest = 'authenticate', default = False, action = 'store_true', required = False, help = 'Enter token credentials.')
 parser.add_argument('--add', dest = 'addDomain', required = False, help = 'Adding new domain')
 parser.add_argument('--remove', dest = 'removeDomain', required = False, help = 'Remove existing domain.')
+parser.add_argument('--list', dest = 'listRecords', required = False, default = False, action = 'store_true', help = 'List current records.')
 
 args = parser.parse_args()
 
 if args.authenticate:
 	CFDNSU.authenticate()
-	sys.exit(0)
 elif args.addDomain:
-	print('fw')
+	CFDNSU.createRecord(args.addDomain)
 elif args.removeDomain:
-	print('rr')
-
-#CFDNSU --authenticate
-#CFDNSU --add _._.fwdev.se
-#CFDNSU --remove _._.fwdev.se
-
+	CFDNSU.removeRecord(args.removeDomain)
+elif args.listRecords:
+	CFDNSU.listRecords()
+else:
+	CFDNSU.run()
+	
