@@ -10,7 +10,13 @@ configuration = configParserHandler['configuration']
 requiredApiHeaders = ['X-Auth-Email', 'X-Auth-Key']
 recordIdentifiers = json.loads(configuration['record_identifiers']) if len(configuration['record_identifiers']) else []
 
-logging.basicConfig(level = logging.INFO, format = '%(asctime)s %(levelname)-8s %(message)s', datefmt = '%Y-%m-%d %H:%M:%S -', handlers = [logging.FileHandler(configuration['log_file']), logging.StreamHandler()])
+fileHandler = logging.FileHandler(configuration['log_file'])
+streamHandler = logging.StreamHandler()
+
+logging.basicConfig(level = logging.INFO, handlers = [fileHandler, streamHandler])
+
+fileHandler.setFormatter(logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', '%Y-%m-%d %H:%M:%S -'))
+streamHandler.setFormatter(logging.Formatter('%(levelname)-8s %(message)s'))
 
 def authenticate():
 	if not os.access(configPath, os.W_OK):
@@ -91,6 +97,10 @@ def run():
 
 	for record in recordIdentifiers:
 		ip = getRecordIp(record['fullDomain'])
+
+		if not ip:
+			return False
+
 		logging.info('%s is set to %s' % (record['fullDomain'], ip))
 
 		if ip != currentIp:
@@ -125,7 +135,8 @@ def getRecordIp(fullDomain):
 	result = json.loads(result)
 
 	if not result['success']:
-		logging.info("Could not get ip.")
+		logging.error('Could not get ip from cloudflare for %s' % fullDomain)
+		return False
 
 	return result['result']['content']
 
@@ -162,6 +173,10 @@ def createRecord(fullDomain):
 	zoneIdentifier = zoneIdentifiers[domain[1]]
 	recordIdentifier = requestRecord(zoneIdentifier, fullDomain)
 
+	if not recordIdentifier:
+		logging.error('Could not find record.')
+		return False
+
 	recordIdentifiers.append({
 		'zoneIdentifier' : zoneIdentifier,
 		'recordIdentifier' : recordIdentifier,
@@ -173,6 +188,10 @@ def createRecord(fullDomain):
 	fh = open(configPath, 'w')
 	configParserHandler.write(fh)
 	fh.close()
+
+	logging.info('Ok!')
+
+	listRecords()
 
 	return True
 
@@ -265,7 +284,8 @@ def getIp():
 		'https://ip.tyk.nu',
 		'https://4.ifcfg.me/ip',
 		'https://icanhazip.com',
-		'https://kekcajwiejaqwqiee.com'
+		'https://api.ipify.org',
+		'https://ip.42.pl/short'
 	]
 
 	random.shuffle(lookupList)
