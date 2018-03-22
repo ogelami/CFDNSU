@@ -1,0 +1,10 @@
+[Unit]
+Description=CloudFlare DNS updater
+
+[Service]
+ExecStart=/usr/local/bin/CFDNSU
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+Alias=sshd.service
