@@ -1,0 +1,17 @@
+{
+	"auth" : {
+		"email" : "",
+		"key"   : ""
+	},
+	"records" : [
+		{
+			"zone_identifier" : "",
+			"identifier" : ""
+		},
+		{
+			"zone_identifier" : "",
+			"identifier" : ""
+		}
+	],
+	"check_rate" : 120
+}

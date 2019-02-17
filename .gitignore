@@ -1,3 +1,2 @@
-.DS_Store
-CFDNSU.egg-info
-dist
+config.json
+*.exe
