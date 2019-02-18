@@ -11,7 +11,21 @@
 		{
 			"zone_identifier" : "",
 			"identifier" : ""
+		},
+		{
+			"zone_identifier" : "",
+			"identifier" : ""
 		}
 	],
-	"check_rate" : 120
+	"check" : {
+		"rate" : 120,
+		"targets" : [
+			""
+		]
+	},
+	"fcgi":
+	{
+		"protocol" : "unix",
+		"listen" : "/var/run/CFDNSU.sock"
+	}
 }

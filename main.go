@@ -4,8 +4,13 @@ import(
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
+    "net/http/fcgi"
+    "net"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+	"math/rand"
 )
 
 const (
@@ -24,34 +29,18 @@ type Configuration struct {
 		ZoneIdentifier string `json:"zone_identifier"`
 		Identifier string `json:"identifier"`
 	} `json:"records"`
-	CheckRate int `json:"check_rate"`
+	Check struct {
+		Rate int `json:"rate"`
+		Targets []string `json:"targets"`
+	} `json:"check"`
+	FCGI struct {
+		Protocol string `json:"protocol"`
+		Listen string `json:"listen"`
+	} `json:"fcgi"`
 }
 
-/*
-{
-{"result":{"id":"4ed7c0c3f64f590405a877a23ec0427d",
-"type":"A",
-"name":"forwarddevelopment.se",
-"content":"212.85.80.142",
-"proxiable":true,
-"proxied":true,
-"ttl":1,
-"locked":false,
-"zone_id":"7d5a4e3e35b882ad128fa1952a1b7
-e87",
-"zone_name":"forwarddevelopment.se",
-"modified_on":"2019-02-15T10:13:31.565456Z",
-"created_on":"2019-02-15T10:13:31.565456Z",
-"meta":{"auto_added":false,
-"managed_by_apps":false,
-"managed_by_argo_tunnel":false}},
-"success":true,
-"errors":[],
-"messages":[]}
-*/
-
 type CFDNSRecordDetails struct {
-	Result []struct {
+	Result struct {
 		Id string `json:"id"`
 		Type string `json:"type"`
 		Name string `json:"name"`
@@ -71,7 +60,10 @@ type CFDNSRecordDetails struct {
 		} `json:"meta"`
 	} `json:"result"`
 	Success bool `json:"success"`
-	Errors []string `json:"errors"`
+	Errors []struct {
+		Code int `json:"code"`
+		Message string `json:"message"`
+	} `json:"errors"`
 	Messages []string `json:"messages"`
 }
 
@@ -122,7 +114,8 @@ func loadConfiguration() Configuration {
 }
 
 func resolveIp() string {
-	resp, err := http.Get("https://icanhazip.com")
+	url := configuration.Check.Targets[rand.Intn(len(configuration.Check.Targets))]
+	resp, err := http.Get(url)
 
 	if err != nil {
 		log.Error(err)
@@ -178,8 +171,6 @@ func getCFDNSRecordDetails(zoneIdentifier string, identifier string) CFDNSRecord
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneIdentifier, identifier)
 	client := &http.Client{}
 
-	log.Info(url)
-
 	request, err := http.NewRequest("GET", url, nil)
 
 	if err != nil {
@@ -199,8 +190,6 @@ func getCFDNSRecordDetails(zoneIdentifier string, identifier string) CFDNSRecord
 		log.Error(err)
 	}
 
-	fmt.Printf("bf: %v", cFDNSRecordDetails)
-
 	err = json.Unmarshal(body, &cFDNSRecordDetails)
 
 	if err != nil {
@@ -208,13 +197,58 @@ func getCFDNSRecordDetails(zoneIdentifier string, identifier string) CFDNSRecord
 		log.Error(string(body))
 	}
 
-	fmt.Printf("ft: %v", cFDNSRecordDetails)
-
 	return cFDNSRecordDetails
 }
 
+type FastCGIServer struct{}
+
+func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+/*	fmt.Printf("\n=> %+v\n", s)
+	fmt.Printf("\n=> %+v\n", w)
+	fmt.Printf("\n=> %+v\n", req)
+
+	fmt.Printf("\n=> %+v\n", req.RemoteAddr)*/
+
+	ip, _, err := net.SplitHostPort(req.RemoteAddr)
+
+	if err != nil {
+		log.Error(err)
+	}
+
+	w.Write([]byte(ip))
+}
+
+func host() {
+	listen, err := net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
+
+	if err != nil {
+		log.Error(err)
+	}
+
+	fastCGIServer := new(FastCGIServer)
+
+	/*@todo: check if configuration.FCGI.Listen is socket*/
+	if configuration.FCGI.Protocol == "unix" {
+		err = os.Chmod(configuration.FCGI.Listen, 0666)
+
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	log.Info("Serving")
+
+	fcgi.Serve(listen, fastCGIServer)
+}
+
 func main() {
+	rand.Seed(time.Now().Unix())
 	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`))
+
+	go host()
+	time.Sleep(time.Second * 10)
+	fmt.Printf("%+v", resolveIp())
+
 
 /*	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
 
@@ -228,12 +262,19 @@ func main() {
 //	fmt.Printf("Species: %s, Description: %s", bird.Species, bird.Description)
 
 //	log.Info(string())
-	c := getCFListDNSRecords(configuration.Records[0].ZoneIdentifier)
+/*	c := getCFListDNSRecords(configuration.Records[2].ZoneIdentifier)
 
 	for _, element := range c.Result {
-    	fmt.Printf("\n=> %v\n", getCFDNSRecordDetails(configuration.Records[0].ZoneIdentifier, element.Id))
-    	break
-	}
+    	fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(configuration.Records[2].ZoneIdentifier, element.Id))
+    	break;
+	}*/
+
+/*	for _, record := range configuration.Records {
+		fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier))
+	}*/
+
+
+
 //	log.Info(resolveIp())
 
 /*
