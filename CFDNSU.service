@@ -1,0 +1,13 @@
+[Unit]
+Description=The Cloud Flare DNS Updater
+After=network.target
+
+[Service]
+Type=simple
+PIDFile=/run/CFDNSU.pid
+ExecStart=/usr/sbin/CFDNSU
+ExecReload=/bin/kill -USR2 $MAINPID
+ExecStartPre=/bin/rm /var/run/CFDNSU.sock
+
+[Install]
+WantedBy=multi-user.target
