@@ -22,20 +22,13 @@ import(
 GOOS=linux GOARCH=arm go build main.go && scp {main,config.json,CFDNSU.service,install.sh} charon:
 */
 
-/*
-"http://charon.fwdev.se/test"
-*/
-
-/*
-@todo: graceful .sock shutdown on sigterm
-	- https://stackoverflow.com/questions/16681944/how-to-reliably-unlink-a-unix-domain-socket-in-go-programming-language
-*/
+type Auth struct{
+	Email string `json:"email"`
+	Key string `json:"key"`
+}
 
 type Configuration struct {
-	Auth struct {
-		Email string `json:"email"`
-		Key string `json:"key"`
-	} `json:"auth"`
+	Auth Auth `json:"auth"`
 	Records []struct {
 		ZoneIdentifier string `json:"zone_identifier"`
 		Identifier string `json:"identifier"`
@@ -96,7 +89,41 @@ func resolveIp() (error, string) {
 	return nil, string(body)
 }
 
-func getCFListDNSRecords(zoneIdentifier string) cloudflare.CFListDNSRecords {
+func getCFListZones(auth Auth) (error, cloudflare.CFListZones) {
+	var cFListZones cloudflare.CFListZones
+	url := "https://api.cloudflare.com/client/v4/zones?per_page=50"
+	client := &http.Client{}
+
+	request, err := http.NewRequest("GET", url, nil)
+
+	if err != nil {
+		return err, cFListZones
+	}
+
+	request.Header.Add("Content-Type", "application/json")
+	request.Header.Add("X-Auth-Email", auth.Email)
+	request.Header.Add("X-Auth-Key", auth.Key)
+
+	resp, err := client.Do(request)
+
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return err, cFListZones
+	}
+
+	err = json.Unmarshal(body, &cFListZones)
+
+	if err != nil {
+		log.Error(string(body))
+		return err, cFListZones
+	}
+
+	return nil, cFListZones
+}
+
+func getCFListDNSRecords(zoneIdentifier string) (error, cloudflare.CFListDNSRecords) {
 	var cFListDNSRecords cloudflare.CFListDNSRecords
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?per_page=100&type=A", zoneIdentifier)
 	client := &http.Client{}
@@ -104,7 +131,7 @@ func getCFListDNSRecords(zoneIdentifier string) cloudflare.CFListDNSRecords {
 	request, err := http.NewRequest("GET", url, nil)
 
 	if err != nil {
-		log.Error(err)
+		return err, cFListDNSRecords
 	}
 
 	request.Header.Add("Content-Type", "application/json")
@@ -117,17 +144,17 @@ func getCFListDNSRecords(zoneIdentifier string) cloudflare.CFListDNSRecords {
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Error(err)
+		return err, cFListDNSRecords
 	}
 
 	err = json.Unmarshal(body, &cFListDNSRecords)
 
 	if err != nil {
-		log.Error(err)
 		log.Error(string(body))
+		return err, cFListDNSRecords
 	}
 
-	return cFListDNSRecords
+	return nil, cFListDNSRecords
 }
 
 func getCFDNSRecordDetails(zoneIdentifier string, identifier string) cloudflare.CFDNSRecordDetails {
@@ -275,10 +302,44 @@ var (
 )
 
 func dump() {
-	zoneIdentifiers := make(map[string]struct{})
+	err, cFListZones := getCFListZones(configuration.Auth)
 
-	for _, element := range configuration.Records {
-		
+	if err != nil {
+		log.Error(err)
+	}
+
+	for _, zone := range cFListZones.Result {
+		err, zoneRecord := getCFListDNSRecords(zone.Id)
+
+		if err != nil {
+			log.Error(err)
+		}
+
+		if zoneRecord.Success == false {
+			log.Errorf("%+v", zone)
+		}
+
+		zoneMax := len(zoneRecord.Result) - 1
+
+		modifier := "┌"
+
+		if zoneMax == -1 {
+			modifier = " "
+		}
+
+		log.Infof("%s[%s][%s]", modifier, zone.Id, zone.Name)
+
+		for iterator, element := range zoneRecord.Result {
+			zoneDetails := getCFDNSRecordDetails(zone.Id, element.Id)
+
+			modifier = "├"
+
+			if iterator == zoneMax {
+				modifier = "└"
+			}
+
+			log.Infof("%s─%s - %s", modifier, zoneDetails.Result.Id, zoneDetails.Result.Name)
+		}
 	}
 }
 
@@ -321,7 +382,7 @@ func run() {
 					cFDNSRecordDetails := getCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
 
 					if cFDNSRecordDetails.Result.Ip != currentIp {
-						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, setCFDNSRecord(recordIndex, currentIp))	
+						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, setCFDNSRecord(recordIndex, currentIp))
 					}
 				}
 			}
@@ -336,7 +397,7 @@ func run() {
 func main() {
 	var err error
 	rand.Seed(time.Now().Unix())
-	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`))
+	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{color:reset} %{message}`))
 
 	err, configuration = loadConfiguration()
 
@@ -351,11 +412,4 @@ func main() {
 	case kingpinRun.FullCommand():
 		run()
 	}
-
-/*	c := getCFListDNSRecords(configuration.Records[2].ZoneIdentifier)
-
-	for _, element := range c.Result {
-		fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(configuration.Records[2].ZoneIdentifier, element.Id))
-		break;
-	}*/
 }

@@ -79,3 +79,22 @@ type CFUpdateDNSRecord struct {
 		Modified_on string `json:"modified_on"`
 	} `json:"result"`
 }
+
+type CFListZones struct {
+	Success bool `json:"success"`
+	Errors []struct {
+		Code int `json:"code"`
+		Message string `json:"message"`
+	} `json:"errors"`
+	Messages []string `json:"messages"`
+	Result []struct {
+		Name string `json:"name"`
+		Id string `json:"id"`
+	} `json:"result"`
+	ResultInfo struct {
+		Page int `json:"page"`
+		PerPage int `json:"per_page"`
+		Count int `json:"count"`
+		TotalCount int `json:"Total_count"`
+	} `json:"result_info`
+}
