@@ -12,19 +12,11 @@ import(
 	"time"
 	"math/rand"
 	"bytes"
+	"CFDNSU/cloudflare"
 )
 
 /*
 GOOS=linux GOARCH=arm go build main.go && scp {main,config.json,CFDNSU.service,install.sh} charon:
-*/
-
-/*
-,
-		{
-			"zone_identifier" : "704c351a5412d4144779f57c789c5b1a",
-			"identifier" : "4141e2721e41beed61097578301696e4",
-			"name" : "charon.fwdev.se"
-		}
 */
 
 /*
@@ -35,13 +27,6 @@ GOOS=linux GOARCH=arm go build main.go && scp {main,config.json,CFDNSU.service,i
 @todo: graceful .sock shutdown on sigterm
 	- https://stackoverflow.com/questions/16681944/how-to-reliably-unlink-a-unix-domain-socket-in-go-programming-language
 */
-
-const (
-	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
-)
-
-var log = logging.MustGetLogger("logger")
-var configuration = loadConfiguration()
 
 type Configuration struct {
 	Auth struct {
@@ -63,104 +48,30 @@ type Configuration struct {
 	} `json:"fcgi"`
 }
 
-type CFDNSRecordDetails struct {
-	Result struct {
-		Id string `json:"id"`
-		Type string `json:"type"`
-		Name string `json:"name"`
-		Ip string `json:"content"`
-		Proxiable bool `json:"proxiable"`
-		Proxied bool `json:"proxied"`
-		Ttl int `json:"ttl"`
-		Locked bool `json:"locked"`
-		Zone_id string `json:"zone_id"`
-		Zone_name string `json:"zone_name"`
-		Modified_on string `json:"modified_on"`
-		Created_on string `json:"created_on"`
-		Meta struct {
-			Auto_added bool `json:"auto_added"`
-			Managed_by_apps bool `json:"managed_by_apps"`
-			Managed_by_argo_tunnel bool `json:"managed_by_argo_tunnel"`
-		} `json:"meta"`
-	} `json:"result"`
-	Success bool `json:"success"`
-	Errors []struct {
-		Code int `json:"code"`
-		Message string `json:"message"`
-	} `json:"errors"`
-	Messages []string `json:"messages"`
-}
+const (
+//	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
+	CONFIGURATION_PATH = "config.json"
+)
 
-type CFListDNSRecords struct {
-	Success bool `json:"success"`
-	Errors []struct {
-		Code int `json:"code"`
-		Message string `json:"message"`
-	} `json:"errors"`
-	Messages []string `json:"messages"`
-	Result []struct {
-		Id string `json:"id"`
-		Type string `json:"type"`
-		Content string `json:"content"`
-		Proxiable bool `json:"proxiable"`
-		Proxied bool `json:"proxied"`
-		Ttl int `json:"ttl"`
-		Locked bool `json:"locked"`
-		Zone_id string `json:"zone_id"`
-		Zone_name string `json:"zone_name"`
-		Created_on string `json:"created_on"`
-		Modified_on string `json:"modified_on"`
-		Data string `json:"data"`
-	} `json:"result"`
-	ResultInfo struct {
-		Page int `json:"page"`
-		Per_page int `json:"per_page"`
-		Count int `json:"count"`
-		Total_count int `json:"total_count"`
-	} `json:"result_info"`
-}
+var log = logging.MustGetLogger("logger")
+var configuration Configuration
 
-type CFUpdateDNSRecord struct {
-	Success bool `json:"success"`
-	Errors []struct {
-		Code int `json:"code"`
-		Message string `json:"message"`
-	} `json:"errors"`
-	Messages []string `json:"messages"`
-	Result struct {
-		Id string `json:"id"`
-		Type string `json:"type"`
-		Name string `json:"name"`
-		Content string `json:"content"`
-		Proxiable bool `json:"proxiable"`
-		Proxied bool `json:"proxied"`
-		Ttl int `json:"ttl"`
-		Locked bool `json:"locked"`
-		Zone_id string `json:"zone_id"`
-		Zone_name string `json:"zone_name"`
-		Created_on string `json:"created_on"`
-		Modified_on string `json:"modified_on"`
-	} `json:"result"`
-}
-
-func loadConfiguration() Configuration {
-	var configuration Configuration
-
+func loadConfiguration() (error, Configuration) {
 	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
 
 	if err != nil {
 		log.Critical(err)
-		return configuration
+		return err, configuration
 	}
 
 	err = json.Unmarshal(configurationRaw, &configuration)
 
 	if err != nil {
 		log.Critical(err)
-		return configuration
+		return err, configuration
 	}
 
-	return configuration
+	return nil, configuration
 }
 
 func resolveIp() (error, string) {
@@ -168,15 +79,14 @@ func resolveIp() (error, string) {
 	resp, err := http.Get(url)
 
 	if err != nil {
-		log.Error(err)
+		return err, ""
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Error(err)
-		log.Errorf("%s", body)
+		return err, ""
 	}
 
 	if resp.StatusCode > 200 {
@@ -186,8 +96,8 @@ func resolveIp() (error, string) {
 	return nil, string(body)
 }
 
-func getCFListDNSRecords(zoneIdentifier string) CFListDNSRecords {
-	var cFListDNSRecords CFListDNSRecords
+func getCFListDNSRecords(zoneIdentifier string) cloudflare.CFListDNSRecords {
+	var cFListDNSRecords cloudflare.CFListDNSRecords
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?per_page=100&type=A", zoneIdentifier)
 	client := &http.Client{}
 	
@@ -220,8 +130,8 @@ func getCFListDNSRecords(zoneIdentifier string) CFListDNSRecords {
 	return cFListDNSRecords
 }
 
-func getCFDNSRecordDetails(zoneIdentifier string, identifier string) CFDNSRecordDetails {
-	var cFDNSRecordDetails CFDNSRecordDetails
+func getCFDNSRecordDetails(zoneIdentifier string, identifier string) cloudflare.CFDNSRecordDetails {
+	var cFDNSRecordDetails cloudflare.CFDNSRecordDetails
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneIdentifier, identifier)
 	client := &http.Client{}
 
@@ -255,7 +165,7 @@ func getCFDNSRecordDetails(zoneIdentifier string, identifier string) CFDNSRecord
 }
 
 func setCFDNSRecord(recordId int, ip string) bool {
-	var cFUpdateDNSRecord CFUpdateDNSRecord
+	var cFUpdateDNSRecord cloudflare.CFUpdateDNSRecord
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", configuration.Records[recordId].ZoneIdentifier, configuration.Records[recordId].Identifier)
 	client := &http.Client{}
 
@@ -308,32 +218,55 @@ func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(ip))
 }
 
-func host() {
+func host() error {
 	listen, err := net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
 
 	if err != nil {
 		log.Error(err)
+
+		return err
 	}
 
 	fastCGIServer := new(FastCGIServer)
 
-	/* @todo: check if configuration.FCGI.Listen is socket */
 	if configuration.FCGI.Protocol == "unix" {
+		//cleanup if unix sockfile already exists
+		if _, err := os.Stat(configuration.FCGI.Listen); err == nil {
+			err = os.Remove(configuration.FCGI.Listen)
+
+			if err != nil {
+				log.Error(err)
+
+				return err
+			}
+		}
+
 		err = os.Chmod(configuration.FCGI.Listen, 0666)
 
 		if err != nil {
 			log.Error(err)
+
+			return err
 		}
 	}
 
 	log.Infof("Serving %s", configuration.FCGI.Listen)
 
 	fcgi.Serve(listen, fastCGIServer)
+
+	return nil
 }
 
 func main() {
 	rand.Seed(time.Now().Unix())
 	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`))
+
+	err, configuration := loadConfiguration()
+
+	if err != nil {
+		log.Criticalf("%s", err)
+		return
+	}
 
 	if configuration.FCGI.Listen != "" && configuration.FCGI.Protocol != "" {
 		go host()
@@ -344,8 +277,13 @@ func main() {
 	for true {
 		err, currentIp := resolveIp()
 
-		if err != nil {
-			log.Fatal(err)
+		if err != nil  {
+			if oldIp == "" {
+				log.Fatal(err)
+				return
+			} else {
+				log.Warning(err)
+			}
 		}
 
 		if currentIp != oldIp {

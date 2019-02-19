@@ -1,4 +1,4 @@
 config.json
 *.exe
 main
-
+.DS_Store
