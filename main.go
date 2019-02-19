@@ -2,6 +2,7 @@ package main
 
 import(
 	"github.com/op/go-logging"
+	"github.com/alecthomas/kingpin"
 	"io/ioutil"
 	"net/http"
 	"net/http/fcgi"
@@ -54,9 +55,6 @@ const (
 	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
 //	CONFIGURATION_PATH = "config.json"
 )
-
-var log = logging.MustGetLogger("logger")
-var configuration Configuration
 
 func loadConfiguration() (error, Configuration) {
 	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
@@ -222,8 +220,10 @@ func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func host() (error, net.Listener) {
-	var err error
-	var listen net.Listener
+	var (
+		err error
+		listen net.Listener
+	)
 
 	if configuration.FCGI.Protocol == "unix" {
 		//cleanup if unix sockfile already exists
@@ -265,17 +265,24 @@ func host() (error, net.Listener) {
 	return nil, listen
 }
 
-func main() {
-	rand.Seed(time.Now().Unix())
-	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`))
+var (
+	kingpinApp = kingpin.New("CFDNSU", "Cloudflare DNS updater")
+	kingpinDump = kingpinApp.Command("dump", "Dump zone_identifiers and identifiers")
+	kingpinRun = kingpinApp.Command("run", "run").Default()
 
-	err, configuration := loadConfiguration()
+	log = logging.MustGetLogger("logger")
+	configuration Configuration
+)
 
-	if err != nil {
-		log.Criticalf("%s", err)
-		return
+func dump() {
+	zoneIdentifiers := make(map[string]struct{})
+
+	for _, element := range configuration.Records {
+		
 	}
+}
 
+func run() {
 	if configuration.FCGI.Listen != "" && configuration.FCGI.Protocol != "" {
 		err, listener := host()
 
@@ -294,7 +301,7 @@ func main() {
 		}(sigc)
 	}
 
-	var oldIp string
+	oldIp := ""
 
 	for true {
 		err, currentIp := resolveIp()
@@ -321,8 +328,28 @@ func main() {
 
 			oldIp = currentIp
 		}
-		
+
 		time.Sleep(time.Second * time.Duration(configuration.Check.Rate))
+	}
+}
+
+func main() {
+	var err error
+	rand.Seed(time.Now().Unix())
+	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`))
+
+	err, configuration = loadConfiguration()
+
+	if err != nil {
+		log.Criticalf("%s", err)
+		return
+	}
+
+	switch kingpin.MustParse(kingpinApp.Parse(os.Args[1:])) {
+	case kingpinDump.FullCommand():
+		dump()
+	case kingpinRun.FullCommand():
+		run()
 	}
 
 /*	c := getCFListDNSRecords(configuration.Records[2].ZoneIdentifier)
