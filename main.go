@@ -13,6 +13,8 @@ import(
 	"math/rand"
 	"bytes"
 	"CFDNSU/cloudflare"
+	"syscall"
+	"os/signal"
 )
 
 /*
@@ -219,7 +221,7 @@ func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(ip))
 }
 
-func host() error {
+func host() (error, net.Listener) {
 	var err error
 	var listen net.Listener
 
@@ -231,7 +233,7 @@ func host() error {
 			if err != nil {
 				log.Error(err)
 
-				return err
+				return err, nil
 			}
 		}
 
@@ -240,7 +242,7 @@ func host() error {
 		if err != nil {
 			log.Error(err)
 
-			return err
+			return err, nil
 		}
 
 		err = os.Chmod(configuration.FCGI.Listen, 0666)
@@ -251,16 +253,16 @@ func host() error {
 	if err != nil {
 		log.Error(err)
 
-		return err
+		return err, nil
 	}
 
 	fastCGIServer := new(FastCGIServer)
 
 	log.Infof("Serving %s", configuration.FCGI.Listen)
 
-	fcgi.Serve(listen, fastCGIServer)
+	go fcgi.Serve(listen, fastCGIServer)
 
-	return nil
+	return nil, listen
 }
 
 func main() {
@@ -275,7 +277,21 @@ func main() {
 	}
 
 	if configuration.FCGI.Listen != "" && configuration.FCGI.Protocol != "" {
-		go host()
+		err, listener := host()
+
+		if err != nil {
+			log.Errorf("%s", err)
+		}
+
+		sigc := make(chan os.Signal, 1)
+		signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
+
+		go func(c chan os.Signal) {
+			sig := <-c
+			log.Infof("Caught signal %s: shutting down.", sig)
+			listener.Close()
+			os.Exit(0)
+		}(sigc)
 	}
 
 	var oldIp string
@@ -290,42 +306,29 @@ func main() {
 			} else {
 				log.Warning(err)
 			}
-		}
+		} else {
+			if currentIp != oldIp {
+				log.Infof("Current ip %s", currentIp)
 
-		if currentIp != oldIp {
-			log.Infof("Current ip %s", currentIp)
+				for recordIndex, record := range configuration.Records {
+					cFDNSRecordDetails := getCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
 
-			for recordIndex, record := range configuration.Records {
-				cFDNSRecordDetails := getCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
-
-				if cFDNSRecordDetails.Result.Ip != currentIp {
-					log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, setCFDNSRecord(recordIndex, currentIp))	
+					if cFDNSRecordDetails.Result.Ip != currentIp {
+						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, setCFDNSRecord(recordIndex, currentIp))	
+					}
 				}
 			}
-		}
 
-		oldIp = currentIp
+			oldIp = currentIp
+		}
+		
 		time.Sleep(time.Second * time.Duration(configuration.Check.Rate))
 	}
 
-//	json.Unmarshal([]byte(configurationRaw), &bird)
-//	fmt.Printf("Species: %s, Description: %s", bird.Species, bird.Description)
-
-//	log.Info(string())
 /*	c := getCFListDNSRecords(configuration.Records[2].ZoneIdentifier)
 
 	for _, element := range c.Result {
 		fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(configuration.Records[2].ZoneIdentifier, element.Id))
 		break;
 	}*/
-
-//	log.Info(resolveIp())
-
-/*
-	log.Info("info")
-	log.Notice("notice")
-	log.Warning("warning")
-	log.Error("err")
-	log.Critical("crit")
-	*/
 }
