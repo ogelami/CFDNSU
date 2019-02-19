@@ -4,8 +4,8 @@ import(
 	"github.com/op/go-logging"
 	"io/ioutil"
 	"net/http"
-    "net/http/fcgi"
-    "net"
+	"net/http/fcgi"
+	"net"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -49,8 +49,8 @@ type Configuration struct {
 }
 
 const (
-//	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
-	CONFIGURATION_PATH = "config.json"
+	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
+//	CONFIGURATION_PATH = "config.json"
 )
 
 var log = logging.MustGetLogger("logger")
@@ -219,19 +219,12 @@ func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func host() error {
-	listen, err := net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
-
-	if err != nil {
-		log.Error(err)
-
-		return err
-	}
-
-	fastCGIServer := new(FastCGIServer)
+	var err error
+	var listen net.Listener
 
 	if configuration.FCGI.Protocol == "unix" {
 		//cleanup if unix sockfile already exists
-		if _, err := os.Stat(configuration.FCGI.Listen); err == nil {
+		if _, err = os.Stat(configuration.FCGI.Listen); err == nil {
 			err = os.Remove(configuration.FCGI.Listen)
 
 			if err != nil {
@@ -241,14 +234,26 @@ func host() error {
 			}
 		}
 
-		err = os.Chmod(configuration.FCGI.Listen, 0666)
+		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
 
 		if err != nil {
 			log.Error(err)
 
 			return err
 		}
+
+		err = os.Chmod(configuration.FCGI.Listen, 0666)
+	} else {
+		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
 	}
+
+	if err != nil {
+		log.Error(err)
+
+		return err
+	}
+
+	fastCGIServer := new(FastCGIServer)
 
 	log.Infof("Serving %s", configuration.FCGI.Listen)
 
@@ -277,7 +282,7 @@ func main() {
 	for true {
 		err, currentIp := resolveIp()
 
-		if err != nil  {
+		if err != nil {
 			if oldIp == "" {
 				log.Fatal(err)
 				return
@@ -309,8 +314,8 @@ func main() {
 /*	c := getCFListDNSRecords(configuration.Records[2].ZoneIdentifier)
 
 	for _, element := range c.Result {
-    	fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(configuration.Records[2].ZoneIdentifier, element.Id))
-    	break;
+		fmt.Printf("\n=> %+v\n", getCFDNSRecordDetails(configuration.Records[2].ZoneIdentifier, element.Id))
+		break;
 	}*/
 
 //	log.Info(resolveIp())
