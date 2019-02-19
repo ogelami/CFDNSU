@@ -209,12 +209,13 @@ func setCFDNSRecord(recordId int, ip string) bool {
 type FastCGIServer struct{}
 
 func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	ip, _, err := net.SplitHostPort(req.RemoteAddr)
+	ip, port, err := net.SplitHostPort(req.RemoteAddr)
 
 	if err != nil {
 		log.Error(err)
 	}
 
+	log.Infof("%s:%s made an ip request", ip, port)
 	w.Write([]byte(ip))
 }
 
