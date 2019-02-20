@@ -7,7 +7,6 @@ Type=simple
 PIDFile=/run/CFDNSU.pid
 ExecStart=/usr/sbin/CFDNSU
 ExecReload=/bin/kill -USR2 $MAINPID
-ExecStartPre=/bin/rm /var/run/CFDNSU.sock
 
 [Install]
 WantedBy=multi-user.target
