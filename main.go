@@ -13,7 +13,7 @@ import(
 	"time"
 	"math/rand"
 	"bytes"
-	"CFDNSU/cloudflare"
+	"cloudflare"
 	"syscall"
 	"os/signal"
 )
