@@ -44,10 +44,7 @@ type Configuration struct {
 	} `json:"fcgi"`
 }
 
-const (
-	CONFIGURATION_PATH = "/etc/CFDNSU/config.json"
-//	CONFIGURATION_PATH = "config.json"
-)
+var CONFIGURATION_PATH string
 
 func loadConfiguration() (error, Configuration) {
 	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
