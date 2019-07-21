@@ -17,8 +17,17 @@ import(
 	"os/signal"
 )
 
-/*
-GOOS=linux GOARCH=arm go build main.go && scp {main,config.json,CFDNSU.service,install.sh} charon:
+/**
+
+make dep
+go run -ldflags "-X main.CONFIGURATION_PATH=bin/cfdnsu.conf" main.go
+
+* lets keep the CF api calls down by only calling getCFDNSRecordDetails on startup
+* if no records are specify still make it possible to run the server as a fcgi only
+* upon failure of retrieving the servers ip address, retry in the next cycle
+* fcgi doesn't seem to respond properly on ?windows?
+* evaluate if its worth moving fcgi to its own package
+
 */
 
 type Configuration struct {
@@ -213,9 +222,7 @@ func run() {
 	}
 
 	oldIp := ""
-	// lets keep the CF api calls down by only calling getCFDNSRecordDetails on startup
-	// if no records are specify still make it possible to run the server as a fcgi only
-	// upon failure of retrieving the servers ip address, retry in the next cycle
+
 	for true {
 		err, currentIp := resolveIp()
 
@@ -233,10 +240,13 @@ func run() {
 				for recordIndex, record := range configuration.Records {
 					err, cFDNSRecordDetails := cloudflare.GetCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
 
-					log.Error(cFDNSRecordDetails)
-
 					if err != nil {
-						log.Error("Failed to get cFDNSRecordDetails")
+						log.Error(err)
+						continue
+					}
+
+					if !cFDNSRecordDetails.Success {
+						log.Error(cFDNSRecordDetails.Errors)
 						continue
 					}
 
@@ -250,9 +260,7 @@ func run() {
 							continue
 						}
 
-						log.Info(cCFDNSRecord)
-
-//						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord)
+						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord)
 					}
 				}
 			}

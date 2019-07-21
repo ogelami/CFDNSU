@@ -35,12 +35,6 @@ func request(requestType string, requestUrl string, requestData []byte, structur
 
 	err = json.Unmarshal(body, &structure)
 
-//	fmt.Printf("%s", body)
-
-/*	if structure.Success == false {
-		return fmt.Errorf(body)
-	}*/
-
 	if err != nil {
 		return err
 	}
@@ -51,7 +45,7 @@ func request(requestType string, requestUrl string, requestData []byte, structur
 func GetCFListZones(auth Authentication) (error, ListZones) {
 	var listZones ListZones
 	url := "https://api.cloudflare.com/client/v4/zones?per_page=50"
-	err := request("GET", url, nil, listZones)
+	err := request("GET", url, nil, &listZones)
 
 	return err, listZones
 }
@@ -59,7 +53,7 @@ func GetCFListZones(auth Authentication) (error, ListZones) {
 func GetCFListDNSRecords(zoneIdentifier string) (error, ListDNSRecords) {
 	var listDNSRecords ListDNSRecords
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?per_page=100&type=A", zoneIdentifier)
-	err := request("GET", url, nil, listDNSRecords)
+	err := request("GET", url, nil, &listDNSRecords)
 
 	return err, listDNSRecords
 }
@@ -67,7 +61,7 @@ func GetCFListDNSRecords(zoneIdentifier string) (error, ListDNSRecords) {
 func GetCFDNSRecordDetails(zoneIdentifier string, identifier string) (error, DNSRecordDetails) {
 	var dNSRecordDetails DNSRecordDetails
 	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneIdentifier, identifier)
-	err := request("GET", url, nil, dNSRecordDetails)
+	err := request("GET", url, nil, &dNSRecordDetails)
 
 	return err, dNSRecordDetails
 }
@@ -82,10 +76,9 @@ func SetCFDNSRecord(recordId int, ip string) (error, UpdateDNSRecord) {
 
 	if err != nil {
 		return err, updateDNSRecord
-//		return err, updateDNSRecord
 	}
 
-	err = request("PUT", url, jsonData, updateDNSRecord)
+	err = request("PUT", url, jsonData, &updateDNSRecord)
 
 	return err, updateDNSRecord
 }
