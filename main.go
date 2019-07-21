@@ -12,7 +12,6 @@ import(
 	"os"
 	"time"
 	"math/rand"
-	"bytes"
 	"./cloudflare"
 	"syscall"
 	"os/signal"
@@ -22,18 +21,9 @@ import(
 GOOS=linux GOARCH=arm go build main.go && scp {main,config.json,CFDNSU.service,install.sh} charon:
 */
 
-type Auth struct{
-	Email string `json:"email"`
-	Key string `json:"key"`
-}
-
 type Configuration struct {
-	Auth Auth `json:"auth"`
-	Records []struct {
-		ZoneIdentifier string `json:"zone_identifier"`
-		Identifier string `json:"identifier"`
-		Name string `json:"name"`
-	} `json:"records"`
+	Auth cloudflare.Authentication `json:"auth"`
+	Records []cloudflare.Record `json:"records"`
 	Check struct {
 		Rate int `json:"rate"`
 		Targets []string `json:"targets"`
@@ -61,6 +51,9 @@ func loadConfiguration() (error, Configuration) {
 		return err, configuration
 	}
 
+	cloudflare.Auth = configuration.Auth
+	cloudflare.Records = configuration.Records
+
 	return nil, configuration
 }
 
@@ -84,150 +77,6 @@ func resolveIp() (error, string) {
 	}
 
 	return nil, string(body)
-}
-
-func getCFListZones(auth Auth) (error, cloudflare.CFListZones) {
-	var cFListZones cloudflare.CFListZones
-	url := "https://api.cloudflare.com/client/v4/zones?per_page=50"
-	client := &http.Client{}
-
-	request, err := http.NewRequest("GET", url, nil)
-
-	if err != nil {
-		return err, cFListZones
-	}
-
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-Auth-Email", auth.Email)
-	request.Header.Add("X-Auth-Key", auth.Key)
-
-	resp, err := client.Do(request)
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		return err, cFListZones
-	}
-
-	err = json.Unmarshal(body, &cFListZones)
-
-	if err != nil {
-		log.Error(string(body))
-		return err, cFListZones
-	}
-
-	return nil, cFListZones
-}
-
-func getCFListDNSRecords(zoneIdentifier string) (error, cloudflare.CFListDNSRecords) {
-	var cFListDNSRecords cloudflare.CFListDNSRecords
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records?per_page=100&type=A", zoneIdentifier)
-	client := &http.Client{}
-	
-	request, err := http.NewRequest("GET", url, nil)
-
-	if err != nil {
-		return err, cFListDNSRecords
-	}
-
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-Auth-Email", configuration.Auth.Email)
-	request.Header.Add("X-Auth-Key", configuration.Auth.Key)
-
-	resp, err := client.Do(request)
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		return err, cFListDNSRecords
-	}
-
-	err = json.Unmarshal(body, &cFListDNSRecords)
-
-	if err != nil {
-		log.Error(string(body))
-		return err, cFListDNSRecords
-	}
-
-	return nil, cFListDNSRecords
-}
-
-func getCFDNSRecordDetails(zoneIdentifier string, identifier string) cloudflare.CFDNSRecordDetails {
-	var cFDNSRecordDetails cloudflare.CFDNSRecordDetails
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", zoneIdentifier, identifier)
-	client := &http.Client{}
-
-	request, err := http.NewRequest("GET", url, nil)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-Auth-Email", configuration.Auth.Email)
-	request.Header.Add("X-Auth-Key", configuration.Auth.Key)
-
-	resp, err := client.Do(request)
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	err = json.Unmarshal(body, &cFDNSRecordDetails)
-
-	if err != nil {
-		log.Error(err)
-		log.Errorf("%s", body)
-	}
-
-	return cFDNSRecordDetails
-}
-
-func setCFDNSRecord(recordId int, ip string) bool {
-	var cFUpdateDNSRecord cloudflare.CFUpdateDNSRecord
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", configuration.Records[recordId].ZoneIdentifier, configuration.Records[recordId].Identifier)
-	client := &http.Client{}
-
-	cFUpdateDNSRecordRequest := map[string]string{"type": "A", "name": configuration.Records[recordId].Name, "content": ip}
-
-	jsonData, err := json.Marshal(cFUpdateDNSRecordRequest)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	request, err := http.NewRequest("PUT", url, bytes.NewBuffer(jsonData))
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-Auth-Email", configuration.Auth.Email)
-	request.Header.Add("X-Auth-Key", configuration.Auth.Key)
-
-	resp, err := client.Do(request)
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	err = json.Unmarshal(body, &cFUpdateDNSRecord)
-
-	if err != nil {
-		log.Error(err)
-		log.Errorf("%s", body)
-	}
-
-	return cFUpdateDNSRecord.Success
 }
 
 type FastCGIServer struct{}
@@ -299,14 +148,14 @@ var (
 )
 
 func dump() {
-	err, cFListZones := getCFListZones(configuration.Auth)
+	err, cFListZones := cloudflare.GetCFListZones(configuration.Auth)
 
 	if err != nil {
 		log.Error(err)
 	}
 
 	for _, zone := range cFListZones.Result {
-		err, zoneRecord := getCFListDNSRecords(zone.Id)
+		err, zoneRecord := cloudflare.GetCFListDNSRecords(zone.Id)
 
 		if err != nil {
 			log.Error(err)
@@ -327,7 +176,11 @@ func dump() {
 		log.Infof("%s[%s][%s]", modifier, zone.Id, zone.Name)
 
 		for iterator, element := range zoneRecord.Result {
-			zoneDetails := getCFDNSRecordDetails(zone.Id, element.Id)
+			err, zoneDetails := cloudflare.GetCFDNSRecordDetails(zone.Id, element.Id)
+
+			if err != nil {
+				log.Error(err)
+			}
 
 			modifier = "├"
 
@@ -360,7 +213,9 @@ func run() {
 	}
 
 	oldIp := ""
-
+	// lets keep the CF api calls down by only calling getCFDNSRecordDetails on startup
+	// if no records are specify still make it possible to run the server as a fcgi only
+	// upon failure of retrieving the servers ip address, retry in the next cycle
 	for true {
 		err, currentIp := resolveIp()
 
@@ -376,10 +231,28 @@ func run() {
 				log.Infof("Current ip %s", currentIp)
 
 				for recordIndex, record := range configuration.Records {
-					cFDNSRecordDetails := getCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
+					err, cFDNSRecordDetails := cloudflare.GetCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
+
+					log.Error(cFDNSRecordDetails)
+
+					if err != nil {
+						log.Error("Failed to get cFDNSRecordDetails")
+						continue
+					}
 
 					if cFDNSRecordDetails.Result.Ip != currentIp {
-						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, setCFDNSRecord(recordIndex, currentIp))
+						err, cCFDNSRecord := cloudflare.SetCFDNSRecord(recordIndex, currentIp)
+
+						if err != nil {
+							log.Error(err)
+							log.Error(cCFDNSRecord)
+							log.Error("Failed to update record")
+							continue
+						}
+
+						log.Info(cCFDNSRecord)
+
+//						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord)
 					}
 				}
 			}

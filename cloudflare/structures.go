@@ -1,6 +1,17 @@
 package cloudflare
 
-type CFDNSRecordDetails struct {
+type Authentication struct{
+	Email string `json:"email"`
+	Key string `json:"key"`
+}
+
+type Record struct {
+	ZoneIdentifier string `json:"zone_identifier"`
+	Identifier string `json:"identifier"`
+	Name string `json:"name"`
+}
+
+type DNSRecordDetails struct {
 	Result struct {
 		Id string `json:"id"`
 		Type string `json:"type"`
@@ -28,7 +39,7 @@ type CFDNSRecordDetails struct {
 	Messages []string `json:"messages"`
 }
 
-type CFListDNSRecords struct {
+type ListDNSRecords struct {
 	Success bool `json:"success"`
 	Errors []struct {
 		Code int `json:"code"`
@@ -57,7 +68,7 @@ type CFListDNSRecords struct {
 	} `json:"result_info"`
 }
 
-type CFUpdateDNSRecord struct {
+type UpdateDNSRecord struct {
 	Success bool `json:"success"`
 	Errors []struct {
 		Code int `json:"code"`
@@ -80,7 +91,7 @@ type CFUpdateDNSRecord struct {
 	} `json:"result"`
 }
 
-type CFListZones struct {
+type ListZones struct {
 	Success bool `json:"success"`
 	Errors []struct {
 		Code int `json:"code"`
