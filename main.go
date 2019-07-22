@@ -160,7 +160,7 @@ func host() (error, net.Listener) {
 var (
 	kingpinApp = kingpin.New("CFDNSU", "Cloudflare DNS updater")
 	kingpinDump = kingpinApp.Command("dump", "Dump zone_identifiers and identifiers")
-	kingpinRun = kingpinApp.Command("run", "run").Default()
+	kingpinRun = kingpinApp.Command("run", "Run CFDNSU in foreground").Default()
 
 	log = logging.MustGetLogger("logger")
 	configuration Configuration
