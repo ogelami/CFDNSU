@@ -2,7 +2,7 @@ package cloudflare
 
 type Authentication struct{
 	Email string `json:"email"`
-	Key string `json:"key"`
+	GlobalApiKey string `json:"global_api_key"`
 	Token string `json:"token"`
 }
 

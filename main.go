@@ -167,7 +167,7 @@ var (
 )
 
 func dump() {
-	err, cFListZones := cloudflare.GetCFListZones(configuration.Auth)
+	err, cFListZones := cloudflare.GetCFListZones()
 
 	if err != nil {
 		log.Error(err)

@@ -1,7 +1,7 @@
 {
 	"auth" : {
 		"email" : "",
-		"key"   : "",
+		"global_api_key" : "",
 		"token" : ""
 	},
 	"records" : [

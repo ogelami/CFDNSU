@@ -8,11 +8,13 @@ CONFIG_PATH := $(SYSCONFDIR)/$(CONFIG_FILE)
 SBINDIR := $(PREFIX)/usr/sbin
 
 all: dep build
+	
 dep:
 	go get -d
 
 build:
 	go build -ldflags "-X main.CONFIGURATION_PATH=${CONFIG_PATH}" -o $(GOBIN)/$(BINARY)
+
 install:
 	mkdir -p $(SYSCONFDIR) $(SBINDIR)
 	cp $(CONFIG_FILE).template $(CONFIG_PATH)

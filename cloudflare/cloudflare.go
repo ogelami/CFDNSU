@@ -22,9 +22,9 @@ func request(requestType string, requestUrl string, requestData []byte, structur
 
 	request.Header.Add("Content-Type", "application/json")
 
-	if Auth.Key != "" {
+	if Auth.GlobalApiKey != "" {
 		request.Header.Add("X-Auth-Email", Auth.Email)
-		request.Header.Add("X-Auth-Key", Auth.Key)
+		request.Header.Add("X-Auth-Key", Auth.GlobalApiKey)
 	} else if Auth.Token != "" {
 		request.Header.Add("Authorization", "Bearer " + Auth.Token)
 	} else {
@@ -49,7 +49,7 @@ func request(requestType string, requestUrl string, requestData []byte, structur
 	return nil
 }
 
-func GetCFListZones(auth Authentication) (error, ListZones) {
+func GetCFListZones() (error, ListZones) {
 	var listZones ListZones
 	url := "https://api.cloudflare.com/client/v4/zones?per_page=50"
 	err := request("GET", url, nil, &listZones)
