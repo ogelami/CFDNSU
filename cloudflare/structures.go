@@ -3,6 +3,7 @@ package cloudflare
 type Authentication struct{
 	Email string `json:"email"`
 	Key string `json:"key"`
+	Token string `json:"token"`
 }
 
 type Record struct {
@@ -10,6 +11,14 @@ type Record struct {
 	Identifier string `json:"identifier"`
 	Name string `json:"name"`
 }
+
+/*type RecordStack struct {
+	ZoneIdentifier []struct {
+		Identifier []struct {
+			Name string `json:"name"`
+		} `json:"identifier"`
+	} `json:"zone_identifier"`
+}*/
 
 type DNSRecordDetails struct {
 	Result struct {

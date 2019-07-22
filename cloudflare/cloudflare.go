@@ -21,8 +21,15 @@ func request(requestType string, requestUrl string, requestData []byte, structur
 	}
 
 	request.Header.Add("Content-Type", "application/json")
-	request.Header.Add("X-Auth-Email", Auth.Email)
-	request.Header.Add("X-Auth-Key", Auth.Key)
+
+	if Auth.Key != "" {
+		request.Header.Add("X-Auth-Email", Auth.Email)
+		request.Header.Add("X-Auth-Key", Auth.Key)
+	} else if Auth.Token != "" {
+		request.Header.Add("Authorization", "Bearer " + Auth.Token)
+	} else {
+		return fmt.Errorf("No tokens/api keys supplied in config.")
+	}
 
 	resp, err := client.Do(request)
 

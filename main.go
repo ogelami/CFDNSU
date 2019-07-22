@@ -10,6 +10,7 @@ import(
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 	"math/rand"
 	"./cloudflare"
@@ -27,6 +28,9 @@ go run -ldflags "-X main.CONFIGURATION_PATH=bin/cfdnsu.conf" main.go
 * upon failure of retrieving the servers ip address, retry in the next cycle
 * fcgi doesn't seem to respond properly on ?windows?
 * evaluate if its worth moving fcgi to its own package
+
+* working test check "https://api.ipify.org/"
+* ip resolution does not validate the ip addr comming back, if its html or ipv6 it will just be passed to cloudflare which will break.
 
 */
 
@@ -85,7 +89,13 @@ func resolveIp() (error, string) {
 		return fmt.Errorf("Wrong response code %d", resp.StatusCode), ""
 	}
 
-	return nil, string(body)
+	ip := strings.TrimSpace(string(body))
+
+	if net.ParseIP(ip).To4() == nil {
+		return fmt.Errorf("Not ipv4 coming from %s", url), ""
+	}
+
+	return nil, ip
 }
 
 type FastCGIServer struct{}
@@ -237,7 +247,7 @@ func run() {
 			if currentIp != oldIp {
 				log.Infof("Current ip %s", currentIp)
 
-				for recordIndex, record := range configuration.Records {
+				for recordIndex, record := range cloudflare.Records {
 					err, cFDNSRecordDetails := cloudflare.GetCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
 
 					if err != nil {
@@ -250,6 +260,8 @@ func run() {
 						continue
 					}
 
+					cloudflare.Records[recordIndex].Name = cFDNSRecordDetails.Result.Name
+
 					if cFDNSRecordDetails.Result.Ip != currentIp {
 						err, cCFDNSRecord := cloudflare.SetCFDNSRecord(recordIndex, currentIp)
 
@@ -260,7 +272,12 @@ func run() {
 							continue
 						}
 
-						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord)
+						if !cCFDNSRecord.Success {
+							log.Error(cCFDNSRecord)
+							continue
+						}
+
+						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord.Success)
 					}
 				}
 			}
@@ -285,9 +302,9 @@ func main() {
 	}
 
 	switch kingpin.MustParse(kingpinApp.Parse(os.Args[1:])) {
-	case kingpinDump.FullCommand():
-		dump()
-	case kingpinRun.FullCommand():
-		run()
+		case kingpinDump.FullCommand():
+			dump()
+		case kingpinRun.FullCommand():
+			run()
 	}
 }
