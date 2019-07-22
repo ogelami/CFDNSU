@@ -7,8 +7,7 @@ SYSCONFDIR := $(PREFIX)/etc
 CONFIG_PATH := $(SYSCONFDIR)/$(CONFIG_FILE)
 SBINDIR := $(PREFIX)/usr/sbin
 
-all:
-	echo "${PREFIX} ${SYSCONFDIR} ${sbindir} ${SBINDIR}"
+all: dep build
 dep:
 	go get -d
 
