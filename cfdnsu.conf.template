@@ -1,17 +1,10 @@
 {
 	"auth" : {
 		"email" : "",
-		"key"   : ""
+		"key"   : "",
+		"token" : ""
 	},
 	"records" : [
-		{
-			"zone_identifier" : "",
-			"identifier" : ""
-		},
-		{
-			"zone_identifier" : "",
-			"identifier" : ""
-		},
 		{
 			"zone_identifier" : "",
 			"identifier" : ""
@@ -19,9 +12,7 @@
 	],
 	"check" : {
 		"rate" : 120,
-		"targets" : [
-			""
-		]
+		"targets" : [""]
 	},
 	"fcgi":
 	{
