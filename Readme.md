@@ -18,9 +18,9 @@ Configuration is simple and there aren't that many options to keep track of. On 
 **CFDNSU will not run if the configuration file cannot be found**
 
 ### auth
-Either specify email and `global_api_key` or you choose to be more restrictive and just use token.
+Either specify `email` and `global_api_key` or you choose to be more restrictive and just use `token` instead.
 
-Tokens and API keys can be found here: [https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
+global_api_key and tokens can be found here: [https://dash.cloudflare.com/profile/api-tokens](https://dash.cloudflare.com/profile/api-tokens)
 
 If the token permission is to strict you won't be able to dump zone_identifier and identifier.
 
