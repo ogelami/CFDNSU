@@ -27,6 +27,7 @@ If the token permission is to strict you won't be able to dump zone_identifier a
 ### records
 A record consist of a `zone_identifier` and an `identifier` they can both be found on Cloudflare and are specific for the records that you want to dynamically update whenever your IP address change.
 
+The two identifiers can be obtained either by [dump](#launch-options) or by finding them on cloudflare and are formatted in a 32 characters alpha-numerical sequence.
 The zone_identifier is specific for the domain whilst the identifier is specific for the sub-domain.
 
 ### check
@@ -41,7 +42,7 @@ If you do not wish to use this feature you can remove the `fcgi` block from the 
 
 `protocol` is the protocol the webserver will communicate over with CFDNSU and `listen` is the listener address this could i.e `/var/run/CFDNSU.sock` or `127.0.0.1:27101`.
 
-## Launch options
+## <a name="launch-options"></a>Launch options
 
  - `./CFDNSU` / `./CFDNSU run` - will start the service
  - `./CFDNSU dump` - will dump all the identifiers and zone_identifiers (this requires `global_api_key` and `email` specifiec in the configuration)
