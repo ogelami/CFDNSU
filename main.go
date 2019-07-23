@@ -10,6 +10,7 @@ import(
 	"encoding/json"
 	"fmt"
 	"os"
+	"plugin"
 	"strings"
 	"time"
 	"math/rand"
@@ -45,6 +46,10 @@ type Configuration struct {
 		Protocol string `json:"protocol"`
 		Listen string `json:"listen"`
 	} `json:"fcgi"`
+	Plugin struct {
+		Path string `json:"path"`
+		Load []string `json:"load"`
+	} `json:"plugin"`
 }
 
 var CONFIGURATION_PATH string
@@ -68,6 +73,29 @@ func loadConfiguration() (error, Configuration) {
 	cloudflare.Records = configuration.Records
 
 	return nil, configuration
+}
+
+func loadPlugins() (error) {
+	var fullPath string
+	pluginMap = make(map[string]*plugin.Plugin)
+
+	for _, record := range configuration.Plugin.Load {
+		fullPath = configuration.Plugin.Path + "/" + record
+
+		hotPlug, err := plugin.Open(fullPath)
+		
+		log.Critical(hotPlug)
+		log.Critical(fullPath)
+
+		if err != nil {
+			log.Critical(err)
+			continue
+		}
+
+		pluginMap[record] = hotPlug
+	}
+
+	return fmt.Errorf("mat")
 }
 
 func resolveIp() (error, string) {
@@ -164,19 +192,20 @@ var (
 
 	log = logging.MustGetLogger("logger")
 	configuration Configuration
+	pluginMap map[string]*plugin.Plugin
 )
 
 func dump() {
 	err, cFListZones := cloudflare.GetCFListZones()
 
 	if err != nil {
-		log.Error(err)
+		log.Critical(err)
 
 		return
 	}
 
 	if !cFListZones.Success {
-		log.Error(cFListZones.Errors)
+		log.Critical(cFListZones.Errors)
 
 		return
 	}
@@ -303,6 +332,7 @@ func main() {
 	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{color:reset} %{message}`))
 
 	err, configuration = loadConfiguration()
+	err = loadPlugins()
 
 	if err != nil {
 		log.Criticalf("%s", err)

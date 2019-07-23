@@ -18,5 +18,6 @@
 	{
 		"protocol" : "unix",
 		"listen" : "/var/run/CFDNSU.sock"
-	}
+	},
+	"plugin_path" : "bin/plugin"
 }
