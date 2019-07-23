@@ -171,6 +171,14 @@ func dump() {
 
 	if err != nil {
 		log.Error(err)
+
+		return
+	}
+
+	if !cFListZones.Success {
+		log.Error(cFListZones.Errors)
+
+		return
 	}
 
 	for _, zone := range cFListZones.Result {
