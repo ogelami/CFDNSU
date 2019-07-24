@@ -2,20 +2,20 @@ package main
 
 import (
 	"../cfdnsu"
+	"net"
+	"os"
+	"net/http"
+	"net/http/fcgi"
 )
 
 func Startup() {
 	if cfdnsu.SharedInformation.Configuration.FCGI.Listen != "" && cfdnsu.SharedInformation.Configuration.FCGI.Protocol != "" {
-		err, listener := host()
+		err, _ := host()
 
 		if err != nil {
-			log.Errorf("%s", err)
+			cfdnsu.SharedInformation.Logger.Errorf("%s", err)
 		}
 	}
-}
-
-func Shutdown() {
-
 }
 
 func host() (error, net.Listener) {
@@ -30,7 +30,7 @@ func host() (error, net.Listener) {
 			err = os.Remove(cfdnsu.SharedInformation.Configuration.FCGI.Listen)
 
 			if err != nil {
-				log.Error(err)
+				cfdnsu.SharedInformation.Logger.Error(err)
 
 				return err, nil
 			}
@@ -39,7 +39,7 @@ func host() (error, net.Listener) {
 		listen, err = net.Listen(cfdnsu.SharedInformation.Configuration.FCGI.Protocol, cfdnsu.SharedInformation.Configuration.FCGI.Listen)
 
 		if err != nil {
-			log.Error(err)
+			cfdnsu.SharedInformation.Logger.Error(err)
 
 			return err, nil
 		}
@@ -50,14 +50,14 @@ func host() (error, net.Listener) {
 	}
 
 	if err != nil {
-		log.Error(err)
+		cfdnsu.SharedInformation.Logger.Error(err)
 
 		return err, nil
 	}
 
 	fastCGIServer := new(FastCGIServer)
 
-	log.Infof("Serving %s", cfdnsu.SharedInformation.Configuration.FCGI.Listen)
+	cfdnsu.SharedInformation.Logger.Infof("Serving %s", cfdnsu.SharedInformation.Configuration.FCGI.Listen)
 
 	go fcgi.Serve(listen, fastCGIServer)
 
@@ -70,9 +70,9 @@ func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ip, port, err := net.SplitHostPort(req.RemoteAddr)
 
 	if err != nil {
-		log.Error(err)
+		cfdnsu.SharedInformation.Logger.Error(err)
 	}
 
-	log.Infof("%s:%s made an ip request", ip, port)
+	cfdnsu.SharedInformation.Logger.Infof("%s:%s made an ip request", ip, port)
 	w.Write([]byte(ip))
 }

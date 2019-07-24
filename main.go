@@ -5,7 +5,6 @@ import(
 	"github.com/alecthomas/kingpin"
 	"io/ioutil"
 	"net/http"
-	"net/http/fcgi"
 	"net"
 	"encoding/json"
 	"fmt"

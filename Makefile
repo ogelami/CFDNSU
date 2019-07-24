@@ -7,25 +7,25 @@ SYSCONFDIR := $(PREFIX)/etc
 CONFIG_PATH := $(SYSCONFDIR)/$(CONFIG_FILE)
 SBINDIR := $(PREFIX)/usr/sbin
 LIBDIR := $(PREFIX)/usr/lib
-PLUGIN_PATH := $(GOPATH)/plugin
-PLUGINS := $(wildcard $(PLUGIN_PATH)/*.go)
+PLUGINS := $(wildcard plugin/*.go)
 
-all: dep build build-plugins
-	
+all : build build-plugins
+
+build-plugins : $(PLUGINS)
+	$(foreach plugin,$^, go build -buildmode=plugin -ldflags "-s" -o $(GOBIN)/$(notdir $(patsubst %.go,%.so,$(plugin))) $(plugin);)
+
+build : main.go
+	go build -ldflags "-s -X main.CONFIGURATION_PATH=${CONFIG_PATH}" -o $(GOBIN)/$(BINARY)
+
 dep:
 	go get -d
 
-build-plugins: $(PLUGINS)
-	go build -buildmode=plugin -o $(GOBIN)/$(patsubst %.go,%.so,$(^F)) $(PLUGIN_PATH)/$(^F)
+.PHONY: all build build-plugins dep
+#install:
+#	mkdir -p $(SYSCONFDIR) $(SBINDIR)
+#	cp $(CONFIG_FILE).template $(CONFIG_PATH)
+#	cp $(GOBIN)/$(BINARY) $(SBINDIR)/$(BINARY)
 
-build:
-	go build -ldflags "-s -X main.CONFIGURATION_PATH=${CONFIG_PATH}" -o $(GOBIN)/$(BINARY)
-
-install:
-	mkdir -p $(SYSCONFDIR) $(SBINDIR)
-	cp $(CONFIG_FILE).template $(CONFIG_PATH)
-	cp $(GOBIN)/$(BINARY) $(SBINDIR)/$(BINARY)
-
-clean:
-	go clean
-	rm -rf $(GOBIN)/*
+#clean:
+#	go clean
+#	rm -rf $(GOBIN)/*
