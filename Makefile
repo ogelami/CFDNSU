@@ -19,7 +19,7 @@ build-plugins: $(PLUGINS)
 	go build -buildmode=plugin -o $(GOBIN)/$(patsubst %.go,%.so,$(^F)) $(PLUGIN_PATH)/$(^F)
 
 build:
-	go build -ldflags "-X main.CONFIGURATION_PATH=${CONFIG_PATH}" -o $(GOBIN)/$(BINARY)
+	go build -ldflags "-s -X main.CONFIGURATION_PATH=${CONFIG_PATH}" -o $(GOBIN)/$(BINARY)
 
 install:
 	mkdir -p $(SYSCONFDIR) $(SBINDIR)

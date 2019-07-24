@@ -1,12 +1,19 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"../cfdnsu"
+)
 
-type greeting string
-
-func (g greeting) Greet() {
-	fmt.Println("Hello Universe")
+func Startup() {
+	cfdnsu.SharedInformation.Logger.Infof("tototoot")
+	fmt.Printf(cfdnsu.SharedInformation.CurrentIp)
 }
 
-// this is exported
-var Greeter greeting
+func Shutdown() {
+	fmt.Printf("Shutdown")
+}
+
+func IpChanged() {
+	fmt.Printf("IpChanged to %s", cfdnsu.SharedInformation.CurrentIp)
+}

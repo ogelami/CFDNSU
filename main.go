@@ -15,6 +15,7 @@ import(
 	"time"
 	"math/rand"
 	"./cloudflare"
+	"./cfdnsu"
 	"syscall"
 	"os/signal"
 )
@@ -27,79 +28,77 @@ go run -ldflags "-X main.CONFIGURATION_PATH=bin/cfdnsu.conf" main.go
 * lets keep the CF api calls down by only calling getCFDNSRecordDetails on startup
 * if no records are specify still make it possible to run the server as a fcgi only
 * upon failure of retrieving the servers ip address, retry in the next cycle
-* fcgi doesn't seem to respond properly on ?windows?
 * evaluate if its worth moving fcgi to its own package
+* Shutdown event not firing
+* ^C interrupt => runtimer error
 
 * working test check "https://api.ipify.org/"
 * ip resolution does not validate the ip addr comming back, if its html or ipv6 it will just be passed to cloudflare which will break.
 
 */
 
-type Configuration struct {
-	Auth cloudflare.Authentication `json:"auth"`
-	Records []cloudflare.Record `json:"records"`
-	Check struct {
-		Rate int `json:"rate"`
-		Targets []string `json:"targets"`
-	} `json:"check"`
-	FCGI struct {
-		Protocol string `json:"protocol"`
-		Listen string `json:"listen"`
-	} `json:"fcgi"`
-	Plugin struct {
-		Path string `json:"path"`
-		Load []string `json:"load"`
-	} `json:"plugin"`
-}
-
 var CONFIGURATION_PATH string
 
-func loadConfiguration() (error, Configuration) {
+func loadConfiguration() (error) {
 	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
 
 	if err != nil {
 		log.Critical(err)
-		return err, configuration
+		return err
 	}
 
-	err = json.Unmarshal(configurationRaw, &configuration)
+	err = json.Unmarshal(configurationRaw, &cfdnsu.SharedInformation.Configuration)
 
 	if err != nil {
 		log.Critical(err)
-		return err, configuration
+		return err
 	}
 
-	cloudflare.Auth = configuration.Auth
-	cloudflare.Records = configuration.Records
+	cloudflare.Auth = cfdnsu.SharedInformation.Configuration.Auth
+	cloudflare.Records = cfdnsu.SharedInformation.Configuration.Records
 
-	return nil, configuration
+	return nil
 }
 
-func loadPlugins() (error) {
+func loadPlugins() {
 	var fullPath string
-	pluginMap = make(map[string]*plugin.Plugin)
+	var symbol plugin.Symbol
 
-	for _, record := range configuration.Plugin.Load {
-		fullPath = configuration.Plugin.Path + "/" + record
+	eventMap = map[string][]plugin.Symbol{}
+
+	for _, record := range cfdnsu.SharedInformation.Configuration.Plugin.Load {
+		fullPath = cfdnsu.SharedInformation.Configuration.Plugin.Path + "/" + record
 
 		hotPlug, err := plugin.Open(fullPath)
-		
-		log.Critical(hotPlug)
-		log.Critical(fullPath)
 
 		if err != nil {
 			log.Critical(err)
 			continue
 		}
 
-		pluginMap[record] = hotPlug
-	}
+		for _, eventName := range []string{"Startup", "Shutdown", "IpChanged"} {
+			symbol, err = hotPlug.Lookup(eventName)
 
-	return fmt.Errorf("mat")
+			if err != nil {
+				log.Critical(err)
+				continue
+			}
+
+			eventMap[eventName] = append(eventMap[eventName], symbol)
+		}
+	}
+}
+
+func triggerEvent(eventName string) {
+	if val, ok := eventMap[eventName]; ok {
+		for _, element := range val {
+			element.(func())()
+		}
+	}
 }
 
 func resolveIp() (error, string) {
-	url := configuration.Check.Targets[rand.Intn(len(configuration.Check.Targets))]
+	url := cfdnsu.SharedInformation.Configuration.Check.Targets[rand.Intn(len(cfdnsu.SharedInformation.Configuration.Check.Targets))]
 	resp, err := http.Get(url)
 
 	if err != nil {
@@ -126,73 +125,14 @@ func resolveIp() (error, string) {
 	return nil, ip
 }
 
-type FastCGIServer struct{}
-
-func (s FastCGIServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	ip, port, err := net.SplitHostPort(req.RemoteAddr)
-
-	if err != nil {
-		log.Error(err)
-	}
-
-	log.Infof("%s:%s made an ip request", ip, port)
-	w.Write([]byte(ip))
-}
-
-func host() (error, net.Listener) {
-	var (
-		err error
-		listen net.Listener
-	)
-
-	if configuration.FCGI.Protocol == "unix" {
-		//cleanup if unix sockfile already exists
-		if _, err = os.Stat(configuration.FCGI.Listen); err == nil {
-			err = os.Remove(configuration.FCGI.Listen)
-
-			if err != nil {
-				log.Error(err)
-
-				return err, nil
-			}
-		}
-
-		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
-
-		if err != nil {
-			log.Error(err)
-
-			return err, nil
-		}
-
-		err = os.Chmod(configuration.FCGI.Listen, 0666)
-	} else {
-		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
-	}
-
-	if err != nil {
-		log.Error(err)
-
-		return err, nil
-	}
-
-	fastCGIServer := new(FastCGIServer)
-
-	log.Infof("Serving %s", configuration.FCGI.Listen)
-
-	go fcgi.Serve(listen, fastCGIServer)
-
-	return nil, listen
-}
-
 var (
 	kingpinApp = kingpin.New("CFDNSU", "Cloudflare DNS updater")
 	kingpinDump = kingpinApp.Command("dump", "Dump zone_identifiers and identifiers")
 	kingpinRun = kingpinApp.Command("run", "Run CFDNSU in foreground").Default()
 
 	log = logging.MustGetLogger("logger")
-	configuration Configuration
 	pluginMap map[string]*plugin.Plugin
+	eventMap map[string][]plugin.Symbol
 )
 
 func dump() {
@@ -250,25 +190,20 @@ func dump() {
 }
 
 func run() {
-	if configuration.FCGI.Listen != "" && configuration.FCGI.Protocol != "" {
-		err, listener := host()
+	cfdnsu.SharedInformation.Logger = log
 
-		if err != nil {
-			log.Errorf("%s", err)
-		}
+	sigc := make(chan os.Signal, 1)
+	signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
 
-		sigc := make(chan os.Signal, 1)
-		signal.Notify(sigc, os.Interrupt, os.Kill, syscall.SIGTERM)
-
-		go func(c chan os.Signal) {
-			sig := <-c
-			log.Infof("Caught signal %s: shutting down.", sig)
-			listener.Close()
-			os.Exit(0)
-		}(sigc)
-	}
+	go func(c chan os.Signal) {
+		sig := <-c
+		log.Infof("Caught signal %s: shutting down.", sig)
+		os.Exit(0)
+	}(sigc)
 
 	oldIp := ""
+
+	triggerEvent("Startup")
 
 	for true {
 		err, currentIp := resolveIp()
@@ -314,6 +249,9 @@ func run() {
 							continue
 						}
 
+						cfdnsu.SharedInformation.CurrentIp = currentIp
+						triggerEvent("IpChanged")
+
 						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord.Success)
 					}
 				}
@@ -322,7 +260,7 @@ func run() {
 			oldIp = currentIp
 		}
 
-		time.Sleep(time.Second * time.Duration(configuration.Check.Rate))
+		time.Sleep(time.Second * time.Duration(cfdnsu.SharedInformation.Configuration.Check.Rate))
 	}
 }
 
@@ -331,8 +269,8 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{color:reset} %{message}`))
 
-	err, configuration = loadConfiguration()
-	err = loadPlugins()
+	err = loadConfiguration()
+	loadPlugins()
 
 	if err != nil {
 		log.Criticalf("%s", err)
