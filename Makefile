@@ -12,13 +12,13 @@ PLUGINS := $(wildcard plugin/*.go)
 all : dep build build-plugins
 
 build-plugins : $(PLUGINS)
-	$(foreach plugin,$^, go build -buildmode=plugin -ldflags "-s" -o $(GOBIN)/$(notdir $(patsubst %.go,%.so,$(plugin))) $(plugin);)
+	$(foreach plugin,$^, GOPATH=$(GOPATH) GOBIN=$(GOBIN) go build -buildmode=plugin -ldflags "-s" -o $(GOBIN)/$(notdir $(patsubst %.go,%.so,$(plugin))) $(plugin);)
 
 build : main.go
-	go build -ldflags "-s -X main.CONFIGURATION_PATH=${CONFIG_PATH} -X main.PLUGIN_PATH=${LIBDIR}" -o $(GOBIN)/$(BINARY)
+	GOPATH=$(GOPATH) GOBIN=$(GOBIN) go build -ldflags "-s -X main.CONFIGURATION_PATH=${CONFIG_PATH} -X main.PLUGIN_PATH=${LIBDIR}" -o $(GOBIN)/$(BINARY)
 
 dep:
-	go get -d
+	GOPATH=$(GOPATH) GOBIN=$(GOBIN) go get -d
 
 install:
 	mkdir -p $(SYSCONFDIR) $(SBINDIR) $(LIBDIR)
