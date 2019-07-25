@@ -101,7 +101,7 @@ func Startup() error {
 		cfdnsu.SharedInformation.Logger.Info("Serving webserver!")
 	}
 
-	err = srv.ListenAndServeTLS(configuration.Webserver.Certificate, configuration.Webserver.CertificateKey)
+	err = srv.ListenAndServeTLS(configuration.Webserver.Listen, configuration.Webserver.Certificate, configuration.Webserver.CertificateKey)
 
 	return err
 }
