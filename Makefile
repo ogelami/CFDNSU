@@ -22,7 +22,7 @@ dep:
 
 install:
 	mkdir -p $(SYSCONFDIR) $(SBINDIR) $(LIBDIR)
-	cp $(CONFIG_FILE).template $(CONFIG_PATH)
+	cp -i $(CONFIG_FILE).template $(CONFIG_PATH)
 	cp $(GOBIN)/$(BINARY) $(SBINDIR)/$(BINARY)
 	cp $(GOBIN)/*.so $(LIBDIR)
 
