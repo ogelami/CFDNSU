@@ -55,10 +55,6 @@ func validateConfiguration() error {
 		return errors.New("Webserver.CertificateKey missing from configuration")
 	}
 
-	if configuration.Webserver.LogRequests {
-		return errors.New("Webserver.LogRequests missing from configuration")
-	}
-
 	return nil
 }
 
