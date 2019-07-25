@@ -6,62 +6,71 @@ import (
 	"os"
 	"net/http"
 	"net/http/fcgi"
+	"encoding/json"
 )
 
-func Startup() {
-	if cfdnsu.SharedInformation.Configuration.FCGI.Listen != "" && cfdnsu.SharedInformation.Configuration.FCGI.Protocol != "" {
-		err, _ := host()
-
-		if err != nil {
-			cfdnsu.SharedInformation.Logger.Errorf("%s", err)
-		}
-	}
+type s_configuration struct {
+	FCGI struct {
+		Protocol string `json:"protocol"`
+		Listen string `json:"listen"`
+	} `json:"fcgi"`
 }
 
-func host() (error, net.Listener) {
-	var (
-		err error
-		listen net.Listener
-	)
+var (
+	listen net.Listener
+	configuration s_configuration
+)
 
-	if cfdnsu.SharedInformation.Configuration.FCGI.Protocol == "unix" {
+func Startup() error {
+	err := json.Unmarshal(cfdnsu.SharedInformation.Configuration, &configuration)
+
+	if err != nil {
+		cfdnsu.SharedInformation.Logger.Error(err)
+		return err
+	}
+
+	if configuration.FCGI.Protocol == "unix" {
 		//cleanup if unix sockfile already exists
-		if _, err = os.Stat(cfdnsu.SharedInformation.Configuration.FCGI.Listen); err == nil {
-			err = os.Remove(cfdnsu.SharedInformation.Configuration.FCGI.Listen)
+		if _, err = os.Stat(configuration.FCGI.Listen); err == nil {
+			err = os.Remove(configuration.FCGI.Listen)
 
 			if err != nil {
 				cfdnsu.SharedInformation.Logger.Error(err)
 
-				return err, nil
+				return err
 			}
 		}
 
-		listen, err = net.Listen(cfdnsu.SharedInformation.Configuration.FCGI.Protocol, cfdnsu.SharedInformation.Configuration.FCGI.Listen)
+		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
 
 		if err != nil {
 			cfdnsu.SharedInformation.Logger.Error(err)
 
-			return err, nil
+			return err
 		}
 
-		err = os.Chmod(cfdnsu.SharedInformation.Configuration.FCGI.Listen, 0666)
+		err = os.Chmod(configuration.FCGI.Listen, 0666)
 	} else {
-		listen, err = net.Listen(cfdnsu.SharedInformation.Configuration.FCGI.Protocol, cfdnsu.SharedInformation.Configuration.FCGI.Listen)
+		listen, err = net.Listen(configuration.FCGI.Protocol, configuration.FCGI.Listen)
 	}
 
 	if err != nil {
 		cfdnsu.SharedInformation.Logger.Error(err)
 
-		return err, nil
+		return err
 	}
 
 	fastCGIServer := new(FastCGIServer)
 
-	cfdnsu.SharedInformation.Logger.Infof("Serving %s", cfdnsu.SharedInformation.Configuration.FCGI.Listen)
+	cfdnsu.SharedInformation.Logger.Infof("Serving %s", configuration.FCGI.Listen)
 
 	go fcgi.Serve(listen, fastCGIServer)
 
-	return nil, listen
+	if err != nil {
+		cfdnsu.SharedInformation.Logger.Errorf("%s", err)
+	}
+
+	return nil
 }
 
 type FastCGIServer struct{}

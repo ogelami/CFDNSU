@@ -23,11 +23,11 @@ import(
 
 make dep
 go run -ldflags "-X main.CONFIGURATION_PATH=bin/cfdnsu.conf" main.go
+openssl ecparam -genkey -name secp384r1 -out bin/server.key
+openssl req -new -x509 -sha256 -key bin/server.key -out bin/server.crt -days 365
 
 * lets keep the CF api calls down by only calling getCFDNSRecordDetails on startup
-* if no records are specify still make it possible to run the server as a fcgi only
 * upon failure of retrieving the servers ip address, retry in the next cycle
-* evaluate if its worth moving fcgi to its own package
 * Shutdown event not firing
 * ^C interrupt => runtimer error
 
@@ -36,25 +36,41 @@ go run -ldflags "-X main.CONFIGURATION_PATH=bin/cfdnsu.conf" main.go
 
 */
 
-var CONFIGURATION_PATH string
+var (
+	CONFIGURATION_PATH string
+	PLUGIN_PATH string
+)
 
-func loadConfiguration() (error) {
-	configurationRaw, err := ioutil.ReadFile(CONFIGURATION_PATH)
+type s_configuration struct {
+	Auth cloudflare.Authentication `json:"auth"`
+	Records []cloudflare.Record `json:"records"`
+	Check struct {
+		Rate int `json:"rate"`
+		Targets []string `json:"targets"`
+	} `json:"check"`
+	Plugin struct {
+		Load []string `json:"load"`
+	} `json:"plugin"`
+}
+
+func loadConfiguration() error {
+	var err error
+	cfdnsu.SharedInformation.Configuration, err = ioutil.ReadFile(CONFIGURATION_PATH)
 
 	if err != nil {
 		log.Critical(err)
 		return err
 	}
 
-	err = json.Unmarshal(configurationRaw, &cfdnsu.SharedInformation.Configuration)
+	err = json.Unmarshal(cfdnsu.SharedInformation.Configuration, &configuration)
 
 	if err != nil {
 		log.Critical(err)
 		return err
 	}
 
-	cloudflare.Auth = cfdnsu.SharedInformation.Configuration.Auth
-	cloudflare.Records = cfdnsu.SharedInformation.Configuration.Records
+	cloudflare.Auth = configuration.Auth
+	cloudflare.Records = configuration.Records
 
 	return nil
 }
@@ -65,25 +81,24 @@ func loadPlugins() {
 
 	eventMap = map[string][]plugin.Symbol{}
 
-	for _, record := range cfdnsu.SharedInformation.Configuration.Plugin.Load {
-		fullPath = cfdnsu.SharedInformation.Configuration.Plugin.Path + "/" + record
+	if len(configuration.Plugin.Load) > 0 {
+		for _, record := range configuration.Plugin.Load {
+			fullPath = PLUGIN_PATH + "/" + record
 
-		hotPlug, err := plugin.Open(fullPath)
-
-		if err != nil {
-			log.Critical(err)
-			continue
-		}
-
-		for _, eventName := range []string{"Startup", "Shutdown", "IpChanged"} {
-			symbol, err = hotPlug.Lookup(eventName)
+			hotPlug, err := plugin.Open(fullPath)
 
 			if err != nil {
 				log.Critical(err)
 				continue
 			}
 
-			eventMap[eventName] = append(eventMap[eventName], symbol)
+			for _, eventName := range []string{"Startup", "Shutdown", "IpChanged", "IpUpdated"} {
+				symbol, err = hotPlug.Lookup(eventName)
+
+				if err == nil {
+					eventMap[eventName] = append(eventMap[eventName], symbol)
+				}
+			}
 		}
 	}
 }
@@ -91,13 +106,17 @@ func loadPlugins() {
 func triggerEvent(eventName string) {
 	if val, ok := eventMap[eventName]; ok {
 		for _, element := range val {
-			element.(func())()
+			err := element.(func() error)()
+
+			if err != nil {
+				log.Error(err)
+			}
 		}
 	}
 }
 
 func resolveIp() (error, string) {
-	url := cfdnsu.SharedInformation.Configuration.Check.Targets[rand.Intn(len(cfdnsu.SharedInformation.Configuration.Check.Targets))]
+	url := configuration.Check.Targets[rand.Intn(len(configuration.Check.Targets))]
 	resp, err := http.Get(url)
 
 	if err != nil {
@@ -132,6 +151,7 @@ var (
 	log = logging.MustGetLogger("logger")
 	pluginMap map[string]*plugin.Plugin
 	eventMap map[string][]plugin.Symbol
+	configuration s_configuration
 )
 
 func dump() {
@@ -202,7 +222,7 @@ func run() {
 
 	oldIp := ""
 
-	triggerEvent("Startup")
+	go triggerEvent("Startup")
 
 	for true {
 		err, currentIp := resolveIp()
@@ -216,7 +236,9 @@ func run() {
 			}
 		} else {
 			if currentIp != oldIp {
+				cfdnsu.SharedInformation.CurrentIp = currentIp
 				log.Infof("Current ip %s", currentIp)
+				go triggerEvent("IpChanged")
 
 				for recordIndex, record := range cloudflare.Records {
 					err, cFDNSRecordDetails := cloudflare.GetCFDNSRecordDetails(record.ZoneIdentifier, record.Identifier)
@@ -248,8 +270,7 @@ func run() {
 							continue
 						}
 
-						cfdnsu.SharedInformation.CurrentIp = currentIp
-						triggerEvent("IpChanged")
+						go triggerEvent("IpUpdated")
 
 						log.Infof("Server ip has changed to %s previously %s updating, updated %t", currentIp, cFDNSRecordDetails.Result.Ip, cCFDNSRecord.Success)
 					}
@@ -259,7 +280,7 @@ func run() {
 			oldIp = currentIp
 		}
 
-		time.Sleep(time.Second * time.Duration(cfdnsu.SharedInformation.Configuration.Check.Rate))
+		time.Sleep(time.Second * time.Duration(configuration.Check.Rate))
 	}
 }
 

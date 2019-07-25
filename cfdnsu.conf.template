@@ -12,12 +12,9 @@
 	],
 	"check" : {
 		"rate" : 120,
-		"targets" : [""]
+		"targets" : ["https://ifconfig.co/ip"]
 	},
-	"fcgi":
-	{
-		"protocol" : "unix",
-		"listen" : "/var/run/CFDNSU.sock"
-	},
-	"plugin_path" : "bin/plugin"
+	"plugin": {
+		"load" : []
+	}
 }

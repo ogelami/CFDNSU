@@ -35,12 +35,42 @@ The zone_identifier is specific for the domain whilst the identifier is specific
 
 `rate` is the interval in seconds of which CFDNSU will make a call to selected web server too see if the IP has changed.
 
+## Plugins
+
+
 ### fcgi
-Is an optional feature you can set up together with a web server with fcgi support which respond with the client IP, the purpose of this is so that you can set up your own trusted network of CFDNSU servers, these servers will then be configurable as `targets`.
+you can set up together with a web server with fcgi support which respond with the client IP, the purpose of this is so that you can set up your own trusted network of CFDNSU servers, these servers will then be configurable as `targets`.
 
 If you do not wish to use this feature you can remove the `fcgi` block from the configuration file.
 
 `protocol` is the protocol the webserver will communicate over with CFDNSU and `listen` is the listener address this could i.e `/var/run/CFDNSU.sock` or `127.0.0.1:27101`.
+
+```
+"fcgi" : {
+	"protocol" : "unix",
+	"listen" : "bin/CFDNSU.sock"
+},
+```
+
+### webserver
+
+```
+"webserver" : {
+	"protocol" : "https",
+	"listen" : ":4443",
+	"certificate" : "bin/server.crt",
+	"certificate_key" : "bin/server.key",
+	"log_requests" : true
+},
+```
+
+### example
+
+```
+"example": {
+	"hello" : "universe"
+}
+```
 
 ## <a name="launch-options"></a>Launch options
 
