@@ -5,7 +5,8 @@ Cloud Flare Domain Name System Updater is a lightweight hackable dynamic DNS for
 
 ## Prerequisites
  - gnu make
- - golang compiler
+ - go version 1.8 or higher
+ - \*nix based system
 
 ## Installation
 

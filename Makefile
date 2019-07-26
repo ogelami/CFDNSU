@@ -9,6 +9,8 @@ SBINDIR := $(PREFIX)/usr/sbin
 LIBDIR := $(PREFIX)/usr/lib/cfdnsu
 PLUGINS := $(wildcard plugin/*.go)
 
+.PHONY: all build build-plugins dep install clean
+
 all : dep build build-plugins
 
 build-plugins : $(PLUGINS)
@@ -30,4 +32,3 @@ clean:
 	go clean
 	rm -rf $(GOBIN)/*
 
-.PHONY: all build build-plugins dep install clean
