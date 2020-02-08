@@ -289,6 +289,17 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	logging.SetFormatter(logging.MustStringFormatter(`%{color} %{shortfunc} ▶ %{level:.4s} %{color:reset} %{message}`))
 
+	var environmentVariableConfigPath = os.Getenv("CFDNSU_CONFIGURATION_PATH")
+	var environmentVariablePluginPath = os.Getenv("CFDNSU_PLUGIN_PATH")
+
+	if len(environmentVariableConfigPath) > 0 {
+		CONFIGURATION_PATH = environmentVariableConfigPath
+	}
+
+	if len(environmentVariablePluginPath) > 0 {
+		PLUGIN_PATH = environmentVariablePluginPath
+	}
+
 	err = loadConfiguration()
 	loadPlugins()
 

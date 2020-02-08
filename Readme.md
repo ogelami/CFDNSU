@@ -16,6 +16,8 @@ Cloud Flare Domain Name System Updater is a lightweight hackable dynamic DNS for
 ## Configuring
 Configuration is simple and there aren't that many options to keep track of. On a default installation the configuration file will be placed in `/etc/cfdnsu.conf`, but this is customization if wanted and can be modified in the `Makefile`.
 
+A configuration path could also be specified during runtime by setting environment variable CFDNSU_CONFIGURATION_PATH
+
 **CFDNSU will not run if the configuration file cannot be found**
 
 ### auth
